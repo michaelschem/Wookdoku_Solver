@@ -1,3 +1,4 @@
 A solver for [Wookdoku](https://apps.apple.com/us/app/woodoku/id1496354836) iPhone game.
 
-<img width="731" alt="image" src="https://user-images.githubusercontent.com/2836129/202740521-6a75aec0-0463-45e5-8167-53d0a51d86de.png">
+<img width="731" alt="image" src="https://user-images.githubusercontent.com/2836129/202759285-e2248781-1e79-45bc-b121-1e0378d2ab53.png">
+
