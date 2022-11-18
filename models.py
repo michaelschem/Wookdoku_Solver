@@ -1,7 +1,7 @@
-# from pieces import pieces
 import math
 import random
 import numpy as np
+from typing import List
 
 
 class bcolors:
@@ -60,23 +60,26 @@ class Board:
         for block in piece.blocks:
             self.squares[position[0] + block[0]][position[1] + block[1]] = True
 
+    def remove(self, piece, position):
+        for block in piece.blocks:
+            self.squares[position[0] + block[0]][position[1] + block[1]] = False
+
+    def clear(self):
+        clears = self.check_for_clears()
+
         # Row clears
-        if clears and clears[0]:
+        if clears[0]:
             # print("ROW CLEAR")
             self.row_set(clears[0], False)
             # for clear in clears[0]:
             #     self.squares[clear] = [False for f in range(0, self.dim)]
-        if clears and clears[1]:
+        if clears[1]:
             # print("COL CLEAR")
             self.col_set(clears[1], False)
 
-        if clears and clears[2]:
+        if clears[2]:
             # print("BOX CLEAR")
             self.box_set(clears[2], False)
-
-    def remove(self, piece, position):
-        for block in piece.blocks:
-            self.squares[position[0] + block[0]][position[1] + block[1]] = False
 
     def check_for_clears(self):
         # check for row clears
@@ -92,13 +95,13 @@ class Board:
                 col_clears.append(i)
 
         box_clears = []
-        box = []
         for y_offset in range(0, 2):
+            box = []
             for x_offset in range(0, 2):
-                for x,y in self.base_box:
-                    box.append(self.squares[x+x_offset][y+y_offset])
+                for y, x in self.base_box:
+                    box.append(self.squares[y+y_offset*3][x+x_offset*3])
                 if False not in box:
-                    box_clears.append([y_offset, x_offset])
+                    box_clears.append([y_offset*3, x_offset*3])
 
         return [row_clears, col_clears, box_clears]
 
@@ -115,6 +118,28 @@ class Board:
         for box_clear in box_clears:
             for y, x in self.base_box:
                 self.squares[y+box_clear[0]][x+box_clears[1]] = set
+
+
+class PieceBag:
+    def __init__(self, pieces) -> None:
+        self.pieces: List[Piece] = pieces
+
+    def get_piece(self):
+        piece_offset = random.randint(0, len(self.pieces) - 1)
+        return self.pieces[piece_offset]
+
+    @property
+    def all_pieces(self):
+        if hasattr(self, '_all_pieces'):
+            return self._all_pieces
+        all_pieces = []
+        for piece in self.pieces:
+            all_pieces.append(piece)
+            all_pieces.append(piece.rotate(90))
+            all_pieces.append(piece.rotate(180))
+            all_pieces.append(piece.rotate(270))
+        self._all_pieces = all_pieces
+        return all_pieces
 
 
 class Piece:
@@ -142,16 +167,6 @@ class Piece:
         for i, piece in enumerate(cls.get_all_pieces()):
             print(i, piece)
 
-    @classmethod
-    def get_all_pieces(cls):
-        all_pieces = []
-        for piece in seed_pieces:
-            all_pieces.append(piece)
-            all_pieces.append(piece.rotate(90))
-            all_pieces.append(piece.rotate(180))
-            all_pieces.append(piece.rotate(270))
-        return all_pieces
-
     def rotate(self, angle=90):
         angle = math.radians(angle)
 
@@ -166,7 +181,7 @@ class Piece:
 class Solver:
 
     def __init__(self, board) -> None:
-        self.board = board
+        self.board: Board = board
 
     def get_possible_places(self, piece):
         possible_places = []
@@ -179,7 +194,7 @@ class Solver:
     def get_best_spot(self, scores):
         return scores[max(scores.keys())]
 
-    def scores(self, possible_places, piece):
+    def scores(self, possible_places, piece, piece_bag: PieceBag):
         scores = {}
         for possible_place in possible_places:
             self.board.add(piece, possible_place)
@@ -189,7 +204,7 @@ class Solver:
             self.board.col_set(clears[1], False)
             self.board.box_set(clears[2], False)
 
-            scores[self.score()] = possible_place, clears
+            scores[self.score(piece_bag)] = possible_place
 
             self.board.row_set(clears[0], True)
             self.board.col_set(clears[1], True)
@@ -198,116 +213,13 @@ class Solver:
             self.board.remove(piece, possible_place)
         return scores
 
-    def score(self) -> int:
+    def score(self, piece_bag: PieceBag) -> int:
         score = 0
         for i, row in enumerate(self.board.squares):
             for j, square in enumerate(row):
-                for piece in Piece.get_all_pieces():
+                for piece in piece_bag.all_pieces:
                     if self.board.can_add(piece, [i, j]):
                         score += 1
         return score
-
-seed_pieces = [
-    # x
-    Piece([(0,0)]),
-
-    # xx
-    Piece([(0,0), (0,1)]),
-
-    # xxx
-    Piece([(0,0), (0,1), (0,2)]),
-
-    # xxxx
-    Piece([(0,0), (0,1), (0,2), (0,3)]),
-
-    # xxxxx
-    Piece([(0,0), (0,1), (0,2), (0,3), (0,4)]),
-
-    # xxx
-    # x
-    Piece([(0,0), (0,1), (0,2), (1,0)]),
-
-    # xxx
-    #   x
-    Piece([(0,0), (0,1), (0,2), (1,2)]),
-
-    # xx
-    # x
-    Piece([(0,0), (0,1), (1,0)]),
-
-    # xxx
-    # x x
-    Piece([(0,0), (0,1), (0,2), (1,0), (1,2)]),
-
-    # xx
-    # xx
-    Piece([(0,0), (0,1), (1,0), (1,1)]),
-
-    # x
-    #  x
-    Piece([(0,0), (1,1)]),
-
-    # x
-    #  x
-    #   x
-    Piece([(0,0), (1,1), (2,2), (3,3)]),
-
-    # x
-    #  x
-    #   x
-    #    x
-    Piece([(0,0), (1,1), (2,2), (3,3), (4,4)]),
-
-    # x
-    # xxx
-    # x
-    Piece([(0,0), (1,0), (1,1), (1,2), (2,0)]),
-
-    # x
-    # xx
-    # x
-    Piece([(0,0), (1,0), (1,1), (2,0)]),
-
-    # xx
-    #  xx
-    Piece([(0,0), (0,1), (1,1), (1,2)]),
-
-    #  xx
-    # xx
-    Piece([(0,1), (0,2), (1,0), (1,1)]),
-
-    # xxx
-    # x
-    # x
-    Piece([(0,0), (0,1), (0,2), (1,0), (2,0)]),
-]
-
-
-if __name__ == '__main__':
-    print('Woodoku')
-    clears = None
-    board = Board()
-    solver = Solver(board)
-    pieces = Piece.get_all_pieces()
-    # Piece.print_options()
-
-    moves = 0
-    clears_count = [0,0,0]
-    while True:
-        moves += 1
-        # piece_offset = int(input("Piece: "))
-        piece_offset = random.randint(0, len(pieces)-1)
-        piece = pieces[piece_offset]
-        possible_places = solver.get_possible_places(piece)
-        scores = solver.scores(possible_places, piece)
-        print(piece)
-        if len(scores) == 0:
-            break
-        spot, clears = solver.get_best_spot(scores)
-        clears = [c+clears[i] for i,c in enumerate(clears)]
-        board.add(piece, spot)
-        print(board)
-    print(f"Lost after {moves} moves.")
-    print(f"Clears: {clears_count}.")
 
 
