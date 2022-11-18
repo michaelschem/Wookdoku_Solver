@@ -1,7 +1,12 @@
 import math
 import random
+import cv2
+import pyautogui
+
 import numpy as np
 from typing import List
+from PIL import Image, ImageDraw
+import pyscreenshot as ImageGrab
 
 
 class bcolors:
@@ -43,10 +48,32 @@ class Board:
         # self._last_board = string
         return string
 
+    def diff(self, other):
+        string = ""
+        for i, row in enumerate(self.squares):
+            string += "\n"
+            if i % 3 == 0:
+                string += ''.join(['-' for i in range(0, self.dim + 4)])
+                string += '\n'
+            for j, square in enumerate(row):
+                if j % 3 == 0:
+                    string += '|'
+                if square and other[i][j]:
+                    string += "x"
+                elif square:
+                    string += f"{bcolors.OKGREEN}x{bcolors.ENDC}"
+                else:
+                    string += " "
+            string += "|"
+        string += '\n'
+        string += ''.join(['-' for i in range(0, self.dim + 4)])
+        # self._last_board = string
+        return string
+
     def can_add(self, piece, position):
         for block in piece.blocks:
             try:
-                if position[0] + block[0] <= -1 or position[1] + block[1] <= -1:
+                if position[0] + block[0] < 0 or position[1] + block[1] < 0:
                     return False
                 if self.squares[position[0] + block[0]][position[1] + block[1]]:
                     return False
@@ -56,7 +83,7 @@ class Board:
 
     def add(self, piece, position):
         if not self.can_add(piece, position):
-            raise RuntimeError("Can't add piece here")
+            raise RuntimeError(f"Can't add piece here, {piece} {position} {self}")
         for block in piece.blocks:
             self.squares[position[0] + block[0]][position[1] + block[1]] = True
 
@@ -81,6 +108,8 @@ class Board:
             # print("BOX CLEAR")
             self.box_set(clears[2], False)
 
+        return clears
+
     def check_for_clears(self):
         # check for row clears
         row_clears = []
@@ -89,15 +118,17 @@ class Board:
                 row_clears.append(i)
 
         col_clears = []
-        for col in range(0, self.dim):
-            col = [i[col] for i in self.squares]
+        for x in range(0, self.dim):
+            col = []
+            for y in range(0, self.dim):
+                col.append(self.squares[y][x])
             if False not in col:
-                col_clears.append(i)
+                col_clears.append(x)
 
         box_clears = []
-        for y_offset in range(0, 2):
-            box = []
-            for x_offset in range(0, 2):
+        for y_offset in range(0, 3):
+            for x_offset in range(0, 3):
+                box = []
                 for y, x in self.base_box:
                     box.append(self.squares[y+y_offset*3][x+x_offset*3])
                 if False not in box:
@@ -117,7 +148,7 @@ class Board:
     def box_set(self, box_clears, set):
         for box_clear in box_clears:
             for y, x in self.base_box:
-                self.squares[y+box_clear[0]][x+box_clears[1]] = set
+                self.squares[y+box_clear[0]][x+box_clear[1]] = set
 
 
 class PieceBag:
@@ -141,6 +172,10 @@ class PieceBag:
         self._all_pieces = all_pieces
         return all_pieces
 
+    def print_options(self):
+        for i, piece in enumerate(self.pieces):
+            print(i, piece)
+
 
 class Piece:
     def __init__(self, blocks=None):
@@ -161,11 +196,6 @@ class Piece:
                     string += " "
 
         return string
-
-    @classmethod
-    def print_options(cls):
-        for i, piece in enumerate(cls.get_all_pieces()):
-            print(i, piece)
 
     def rotate(self, angle=90):
         angle = math.radians(angle)
@@ -223,3 +253,74 @@ class Solver:
         return score
 
 
+class BoardReader:
+    # Screenshot vals
+    # clear_color = [[75, 36, 25], [119, 53, 39]]
+    # piece_color = [198, 154, 103]
+
+    clear_color = [[22, 16, 5], [119, 53, 39]]
+    piece_color = [52, 41, 27]
+
+    def __init__(self, board, image_path=None) -> None:
+        self.board = board
+
+        if image_path:
+            self.image = Image.open(image_path, 'r')
+        else:
+            self.image = None
+
+        # Screenshot vals
+        # self.base = [40, 730, 140, 830]
+        # self.size = 125, 125
+
+        self.base = [90, 872]
+        self.size = [50] * 2
+        self.padding = 45
+        self.base.extend([self.base[0] + self.size[0], self.base[1] + self.size[0]])
+
+        self.error_threshold = 70
+
+    def get_piece(self, color):
+        if abs(np.sum(np.subtract(self.clear_color[0], color))) < self.error_threshold or \
+                abs(np.sum(np.subtract(self.clear_color[1], color))) < self.error_threshold:
+            return False
+        if abs(np.sum(np.subtract(self.piece_color, color))) < self.error_threshold:
+            return True
+
+        raise RuntimeError("Can't resolve piece!")
+
+    def get_screenshot(self):
+        image = pyautogui.screenshot()
+        image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        cv2.imwrite("screen.png", image)
+        self.image = Image.open("screen.png", 'r')
+
+    def get_board(self):
+        self.get_screenshot()
+
+        draw = ImageDraw.Draw(self.image)
+        for y in range(0, self.board.dim):
+            for x in range(0, self.board.dim):
+                ellipse = [self.base[0] + (y*self.size[0]) + (y*self.padding),
+                               self.base[1] + (x*self.size[0]) + (x*self.padding),
+                               self.base[2] + (y*self.size[0]) + (y*self.padding),
+                               self.base[3] + (x*self.size[0]) + (x*self.padding)]
+                pixel_sum = (0, 0, 0)
+                for xp in range(ellipse[0], ellipse[2]):
+                    for yp in range(ellipse[1], ellipse[3]):
+                        pixel_sum = np.add(pixel_sum, self.image.getpixel((xp, yp)))
+                avg_pixel = np.divide(pixel_sum, (10000, 10000, 10000))
+
+                # draw.ellipse(ellipse)
+                # self.image.save('out.png', "PNG")
+
+                self.board.squares[x][y] = self.get_piece(avg_pixel)
+        self.image.save('out.png', "PNG")
+
+    def get_next_pieces(self):
+        self.get_screenshot()
+        draw = ImageDraw.Draw(self.image)
+        draw.ellipse([200, 2000, 300, 2100])
+        self.image.save('out.png', "PNG")
+
+        print('')
