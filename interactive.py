@@ -11,13 +11,14 @@ class Game:
 
     def play(self):
         board = Board()
-        board_reader = BoardReader(board)
-        board_reader.get_board()
+        # board_reader = BoardReader(board)
+        # board_reader.get_board()
 
         solver = Solver(board)
         piece_bag = PieceBag(seed_pieces)
         piece_bag.print_options()
         rots = [0, 90, 180, 270]
+        bonus = [10, 20, 30, 40, 50, 60, 70, 80, 90]
 
         moves = 0
         clears_count = [0,0,0]
@@ -51,9 +52,11 @@ class Game:
             board.add(piece, spot)
 
             print(board.diff(last_board))
+            print(self.score)
 
             clears = board.clear()
-            self.score += len(list(chain(*clears))) * 18
+            self.score += bonus[len(list(chain(*clears)))]
+            print(self.score)
             # print(board)
         print(f"Lost after {moves} moves with score {self.score}.")
 

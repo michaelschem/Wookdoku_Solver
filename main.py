@@ -16,13 +16,13 @@ class Game:
         solver = Solver(board)
         piece_bag = PieceBag(seed_pieces)
         # Piece.print_options()
+        bonus = [10, 20, 30, 40, 50, 60, 70, 80, 90]
 
         moves = 0
         clears_count = [0,0,0]
         while True:
             last_board = copy.deepcopy(board.squares)
             moves += 1
-            # piece_offset = int(input("Piece: "))
             piece = piece_bag.get_piece()
             # print(piece)
             possible_places = solver.get_possible_places(piece)
@@ -33,14 +33,15 @@ class Game:
             # scores = {1: possible_places[0]}
             spot = solver.get_best_spot(scores)
             # print(spot)
-            # clears = [c+clears[i] for i,c in enumerate(clears)]
             board.add(piece, spot)
             print(board.diff(last_board))
-            # print(board)
             clears = board.clear()
-            self.score += len(list(chain(*clears))) * 18
+            self.score += bonus[len(list(chain(*clears)))]
             # print(board)
-        print(f"Lost after {moves} moves with score {self.score}.")
+
+        score_file = open('scores.txt', 'a')
+        score_file.writelines(f"Lost after {moves} moves with score {self.score}. ")
+        score_file.close()
 
         return moves, clears_count, self.score
 
@@ -48,11 +49,16 @@ class Game:
 if __name__ == '__main__':
     max_moves = 0
     max_score = 0
-    for i in range(0, 100):
+    for i in range(0, 10000):
         game = Game()
         moves, clears, score = game.play()
         max_moves = max(moves, max_moves)
         max_score = max(score, max_score)
 
-    print(f"Max moves: {max_moves}")
-    print(f"Max score: {max_score}")
+        score_file = open('scores.txt', 'a')
+        score_file.writelines(f" Best {max_score}, {max_moves}\n")
+        score_file.close()
+
+    score_file = open('scores.txt', 'a')
+    score_file.write(f"Max moves: {max_moves}")
+    score_file.write(f"Max score: {max_score}")
